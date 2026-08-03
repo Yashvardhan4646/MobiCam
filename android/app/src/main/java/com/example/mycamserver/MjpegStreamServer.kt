@@ -4,7 +4,9 @@ import fi.iki.elonen.NanoHTTPD
 import java.io.ByteArrayInputStream
 import java.io.ByteArrayOutputStream
 import java.io.InputStream
+import java.util.concurrent.ArrayBlockingQueue
 import java.util.concurrent.CopyOnWriteArrayList
+import java.util.concurrent.TimeUnit
 
 class MjpegStreamServer(port: Int = 8080) : NanoHTTPD(port) {
 
@@ -38,6 +40,7 @@ class MjpegStreamServer(port: Int = 8080) : NanoHTTPD(port) {
                 }
             }
             else -> {
+                val hostHeader = session.headers["host"] ?: "IP:8080"
                 val html = """
                     <!DOCTYPE html>
                     <html>
@@ -52,7 +55,7 @@ class MjpegStreamServer(port: Int = 8080) : NanoHTTPD(port) {
                     </head>
                     <body>
                         <h2>📱 MyCam Server Live Stream</h2>
-                        <p>Stream URL: <code>http://${session.headers["host"] ?: "IP:8080"}/video</code></p>
+                        <p>Stream URL: <code>http://$hostHeader/video</code></p>
                         <br>
                         <img src="/video" alt="Live Camera Stream">
                     </body>
@@ -64,62 +67,67 @@ class MjpegStreamServer(port: Int = 8080) : NanoHTTPD(port) {
     }
 
     private inner class MjpegInputStream(private val boundary: String) : InputStream() {
-        private var currentStream: ByteArrayInputStream? = null
+        private val frameQueue = ArrayBlockingQueue<ByteArray>(2)
+        private var currentFrameStream: ByteArrayInputStream? = null
+        @Volatile
         private var isClosed = false
 
         private val listener: (ByteArray) -> Unit = { jpeg ->
-            if (!isClosed && currentStream == null) {
-                currentStream = createFrameStream(jpeg)
+            if (!isClosed) {
+                if (frameQueue.remainingCapacity() == 0) {
+                    frameQueue.poll()
+                }
+                frameQueue.offer(jpeg)
             }
         }
 
         init {
             listeners.add(listener)
             latestFrame?.let {
-                currentStream = createFrameStream(it)
+                frameQueue.offer(it)
             }
         }
 
         private fun createFrameStream(jpeg: ByteArray): ByteArrayInputStream {
             val header = "--$boundary\r\nContent-Type: image/jpeg\r\nContent-Length: ${jpeg.size}\r\n\r\n"
-            val out = ByteArrayOutputStream()
-            out.write(header.toByteArray())
+            val out = ByteArrayOutputStream(header.length + jpeg.size + 2)
+            out.write(header.toByteArray(Charsets.US_ASCII))
             out.write(jpeg)
-            out.write("\r\n".toByteArray())
+            out.write("\r\n".toByteArray(Charsets.US_ASCII))
             return ByteArrayInputStream(out.toByteArray())
         }
 
-        override fun read(): Int {
-            if (isClosed) return -1
-            while (currentStream == null || currentStream?.available() == 0) {
+        private fun ensureFrameStream(): Boolean {
+            if (isClosed) return false
+            while (!isClosed && (currentFrameStream == null || currentFrameStream!!.available() == 0)) {
                 try {
-                    Thread.sleep(10)
+                    val nextJpeg = frameQueue.poll(100, TimeUnit.MILLISECONDS)
+                    if (nextJpeg != null) {
+                        currentFrameStream = createFrameStream(nextJpeg)
+                        return true
+                    }
                 } catch (_: InterruptedException) {
                     isClosed = true
-                    return -1
+                    return false
                 }
-                if (isClosed) return -1
             }
-            return currentStream?.read() ?: -1
+            return !isClosed && currentFrameStream != null && currentFrameStream!!.available() > 0
+        }
+
+        override fun read(): Int {
+            if (!ensureFrameStream()) return -1
+            return currentFrameStream?.read() ?: -1
         }
 
         override fun read(b: ByteArray, off: Int, len: Int): Int {
-            if (isClosed) return -1
-            while (currentStream == null || currentStream?.available() == 0) {
-                try {
-                    Thread.sleep(10)
-                } catch (_: InterruptedException) {
-                    isClosed = true
-                    return -1
-                }
-                if (isClosed) return -1
-            }
-            return currentStream?.read(b, off, len) ?: -1
+            if (!ensureFrameStream()) return -1
+            return currentFrameStream?.read(b, off, len) ?: -1
         }
 
         override fun close() {
             isClosed = true
             listeners.remove(listener)
+            frameQueue.clear()
             super.close()
         }
     }

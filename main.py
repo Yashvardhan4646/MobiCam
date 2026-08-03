@@ -42,6 +42,7 @@ DEFAULT_CONFIG = {
 }
 
 PRESETS = {
+    "MyCam Server (Port 8080)": "http://{ip}:{port}/video",
     "DroidCam (WiFi)": "http://{ip}:{port}/video",
     "DroidCam (mjpegfeed)": "http://{ip}:{port}/mjpegfeed",
     "IP Webcam (Android)": "http://{ip}:{port}/video",
@@ -400,6 +401,9 @@ class MobileCameraApp(tk.Tk):
 
     def on_preset_changed(self, event=None):
         preset = self.combo_preset.get()
+        if preset == "MyCam Server (Port 8080)":
+            self.entry_port.delete(0, tk.END)
+            self.entry_port.insert(0, "8080")
         if preset == "Custom URL":
             self.lbl_custom.pack(anchor="w", pady=(2, 2))
             self.entry_custom.pack(fill=tk.X, pady=(0, 6))

@@ -184,42 +184,107 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun imageProxyToJpeg(image: ImageProxy): ByteArray? {
-        val yBuffer = image.planes[0].buffer
-        val uBuffer = image.planes[1].buffer
-        val vBuffer = image.planes[2].buffer
+        try {
+            val width = image.width
+            val height = image.height
 
-        val ySize = yBuffer.remaining()
-        val uSize = uBuffer.remaining()
-        val vSize = vBuffer.remaining()
+            val yPlane = image.planes[0]
+            val uPlane = image.planes[1]
+            val vPlane = image.planes[2]
 
-        val nv21 = ByteArray(ySize + uSize + vSize)
+            val yBuffer = yPlane.buffer
+            val uBuffer = uPlane.buffer
+            val vBuffer = vPlane.buffer
 
-        yBuffer.get(nv21, 0, ySize)
-        vBuffer.get(nv21, ySize, vSize)
-        uBuffer.get(nv21, ySize + vSize, uSize)
+            yBuffer.rewind()
+            uBuffer.rewind()
+            vBuffer.rewind()
 
-        val yuvImage = YuvImage(nv21, ImageFormat.NV21, image.width, image.height, null)
-        val out = ByteArrayOutputStream()
-        yuvImage.compressToJpeg(Rect(0, 0, image.width, image.height), 75, out)
-        return out.toByteArray()
+            val ySize = yBuffer.remaining()
+            val uSize = uBuffer.remaining()
+            val vSize = vBuffer.remaining()
+
+            val nv21 = ByteArray(width * height * 3 / 2)
+
+            val yRowStride = yPlane.rowStride
+            val yPixelStride = yPlane.pixelStride
+
+            var pos = 0
+            if (yRowStride == width && yPixelStride == 1) {
+                val copyLen = Math.min(ySize, width * height)
+                yBuffer.get(nv21, 0, copyLen)
+                pos = width * height
+            } else {
+                for (row in 0 until height) {
+                    yBuffer.position(row * yRowStride)
+                    yBuffer.get(nv21, pos, width)
+                    pos += width
+                }
+            }
+
+            val uvRowStride = uPlane.rowStride
+            val uvPixelStride = uPlane.pixelStride
+            val uvWidth = width / 2
+            val uvHeight = height / 2
+
+            if (uvPixelStride == 2 && vPlane.buffer === uPlane.buffer) {
+                val uvSize = Math.min(vBuffer.remaining(), width * height / 2)
+                vBuffer.get(nv21, pos, uvSize)
+            } else {
+                for (row in 0 until uvHeight) {
+                    val uRowPos = row * uvRowStride
+                    val vRowPos = row * uvRowStride
+                    for (col in 0 until uvWidth) {
+                        val vIndex = vRowPos + col * uvPixelStride
+                        val uIndex = uRowPos + col * uvPixelStride
+                        if (vIndex < vSize) {
+                            nv21[pos++] = vBuffer.get(vIndex)
+                        }
+                        if (uIndex < uSize) {
+                            nv21[pos++] = uBuffer.get(uIndex)
+                        }
+                    }
+                }
+            }
+
+            val yuvImage = YuvImage(nv21, ImageFormat.NV21, width, height, null)
+            val out = ByteArrayOutputStream()
+            yuvImage.compressToJpeg(Rect(0, 0, width, height), 75, out)
+            return out.toByteArray()
+        } catch (e: Exception) {
+            e.printStackTrace()
+            return null
+        }
     }
 
     private fun getLocalIpAddress(): String {
         try {
             val interfaces = NetworkInterface.getNetworkInterfaces()
+            val wifiIpList = mutableListOf<String>()
+            val otherIpList = mutableListOf<String>()
+
             while (interfaces.hasMoreElements()) {
                 val intf = interfaces.nextElement()
+                if (!intf.isUp || intf.isLoopback) continue
+
                 val addrs = intf.inetAddresses
                 while (addrs.hasMoreElements()) {
                     val addr = addrs.nextElement()
                     if (!addr.isLoopbackAddress && addr is InetAddress) {
-                        val host = addr.hostAddress
-                        if (host != null && host.indexOf(':') < 0) {
-                            return host
+                        val host = addr.hostAddress ?: continue
+                        if (host.indexOf(':') < 0 && host != "127.0.0.1") {
+                            val name = intf.name.lowercase()
+                            if (name.startsWith("wlan") || name.startsWith("ap") || name.startsWith("eth")) {
+                                wifiIpList.add(host)
+                            } else {
+                                otherIpList.add(host)
+                            }
                         }
                     }
                 }
             }
+            if (wifiIpList.isNotEmpty()) return wifiIpList.first()
+            if (otherIpList.isNotEmpty()) return otherIpList.first()
         } catch (_: Exception) { }
         return "192.168.1.100"
     }
