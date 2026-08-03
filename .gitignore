@@ -1,0 +1,25 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# User local config & saved media
+config.json
+snapshots/*.jpg
+recordings/*.mp4
+events/*.jpg
+!snapshots/.gitkeep
+!recordings/.gitkeep
+!events/.gitkeep
+
+# Downloaded AI models
+models/*.caffemodel
+models/*.prototxt
+!models/.gitkeep
+
+# IDE / System
+.vscode/
+.idea/
+.DS_Store
+*.swp
+build_apk.bat
