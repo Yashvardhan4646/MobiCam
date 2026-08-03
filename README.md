@@ -157,3 +157,11 @@ If you wish to modify or rebuild the Android app `.apk`:
 ## 📜 License
 
 This project is licensed under the **MIT License**. Free for personal and commercial use.
+
+---
+
+## ⚠️ Disclaimer
+
+This software is provided for educational, research, and personal home monitoring purposes only. 
+- **Privacy & Compliance**: Users are solely responsible for complying with local, state, and national laws regarding video surveillance and privacy. Do not use this software for unauthorized recording or invasion of privacy.
+- **No Warranty**: The developer assumes no liability for missed motion alerts, hardware damage, data loss, or improper usage of the stream. Use at your own risk.
