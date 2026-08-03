@@ -1,6 +1,6 @@
 # 📱 AI Mobile Camera & Security System
 
-A high-performance, **zero-latency** AI security camera system that turns any smartphone into an intelligent **AI surveillance camera** over Wi-Fi, USB, or remote cellular networks (4G/5G). Includes a native open-source Android app (`MyCam Server`) and a Python desktop client with real-time AI object detection.
+A high-performance, **zero-latency** AI security camera system that turns any smartphone into an intelligent **AI surveillance camera** over Wi-Fi, USB. Includes a native open-source Android app (`MyCam Server`) and a Python desktop client with real-time AI object detection.
 
 ![Python](https://img.shields.io/badge/Python-3.8%2B-blue.svg)
 ![OpenCV](https://img.shields.io/badge/OpenCV-4.5%2B-green.svg)
@@ -101,19 +101,6 @@ python cli_cam.py 192.168.1.100 4747
 - Press **'q'** to quit.
 
 ---
-
-## 🌐 Global Remote Access (Stream From Anywhere)
-
-To view your mobile camera from anywhere in the world over **4G/5G mobile data** or outside your home Wi-Fi:
-
-1. Install **[Tailscale](https://tailscale.com)** on both your smartphone and PC.
-2. Log into the same account on both devices.
-3. Switch Tailscale **ON** on your phone.
-4. Copy your phone's **Tailscale IP** (starts with `100.x.x.x`).
-5. In `main.py`, enter the `100.x.x.x` IP address. Click **▶ Start Stream**.
-
----
-
 ## 🕒 24/7 Surveillance Setup Guidelines
 
 To keep your mobile camera running continuously as a non-stop security camera:
